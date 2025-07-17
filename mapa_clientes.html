@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client & Prospect Map</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet.MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #f3f4f6;
+        }
+        .container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        #map {
+            height: 600px;
+            width: 100%;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            margin-top: 1rem;
+        }
+        @media (max-width: 768px) {
+            #map {
+                height: 400px;
+            }
+        }
+        .info-box {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: none;
+        }
+        
+        /* Custom styles for datalist dropdown */
+        #countryFilter::-webkit-calendar-picker-indicator {
+            display: none;
+        }
+        
+        #countryFilter::-webkit-list-button {
+            display: none;
+        }
+        
+        /* Style the datalist dropdown to match other filters */
+        datalist {
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        datalist option {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: #374151;
+        }
+        
+        datalist option:hover {
+            background-color: #f3f4f6;
+        }
+        
+        /* Multi-select dropdown styles */
+        #propertyTypeOptions {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e0 #f7fafc;
+        }
+        
+        #propertyTypeOptions::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        #propertyTypeOptions::-webkit-scrollbar-track {
+            background: #f7fafc;
+            border-radius: 3px;
+        }
+        
+        #propertyTypeOptions::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 3px;
+        }
+        
+        #propertyTypeOptions::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
+        }
+        
+        /* Checkbox styles */
+        #propertyTypeCheckboxes input[type="checkbox"] {
+            cursor: pointer;
+        }
+        
+        #propertyTypeCheckboxes label {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        #propertyTypeCheckboxes .flex:hover {
+            background-color: #f8fafc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="container">
+        <h1 class="text-3xl font-extrabold text-center text-blue-700 mb-4 p-2 rounded-lg bg-white shadow-md">
+            Client & Prospect Distribution Map
+        </h1>
+
+        <!-- Add filters -->
+        <div class="mb-4 bg-white p-4 rounded-lg shadow-md">
+            <!-- Search field -->
+            <div class="mb-4">
+                <label for="searchField" class="block text-sm font-medium text-gray-700 mb-2">Search by Record ID or Company Name:</label>
+                <div class="flex gap-2">
+                    <input type="text" id="searchField" 
+                           class="flex-1 p-2 border rounded-md" 
+                           placeholder="Enter Record ID or Company Name">
+                    <button id="searchButton" 
+                            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                        Search
+                    </button>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                    <label for="countryFilter" class="block text-sm font-medium text-gray-700 mb-2">Filter by Country:</label>
+                    <div class="relative">
+                        <input type="text" id="countryFilter" 
+                               class="w-full p-2 pr-8 border rounded-md focus:border-blue-500 focus:ring-blue-500" 
+                               placeholder="Type country name..."
+                               list="countryOptions">
+                        <button id="clearCountryFilter" 
+                                class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                                style="display: none;">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <datalist id="countryOptions">
+                        <option value="">All Countries</option>
+                    </datalist>
+                </div>
+                <div>
+                    <label for="regionFilter" class="block text-sm font-medium text-gray-700 mb-2">Filter by Region:</label>
+                    <select id="regionFilter" class="w-full p-2 border rounded-md">
+                        <option value="">All Regions</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="propertyTypeFilter" class="block text-sm font-medium text-gray-700 mb-2">Filter by Property Type:</label>
+                    <div class="relative">
+                        <button id="propertyTypeDropdown" 
+                                class="w-full p-2 border rounded-md bg-white text-left flex justify-between items-center hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <span id="propertyTypeDisplay">All Property Types</span>
+                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        <div id="propertyTypeOptions" 
+                             class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto hidden">
+                            <div class="p-2">
+                                <div class="flex items-center mb-2">
+                                    <input type="checkbox" id="selectAllPropertyTypes" class="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <label for="selectAllPropertyTypes" class="text-sm font-medium text-gray-700">Select All</label>
+                                </div>
+                                <hr class="mb-2">
+                                <div id="propertyTypeCheckboxes" class="space-y-1">
+                                    <!-- Property type options will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label for="amenitizFilter" class="block text-sm font-medium text-gray-700 mb-2">Filter by Client Status:</label>
+                    <select id="amenitizFilter" class="w-full p-2 border rounded-md">
+                        <option value="">All Hotels</option>
+                        <option value="true">Clients</option>
+                        <option value="false">Prospects</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="healthScoreFilter" class="block text-sm font-medium text-gray-700 mb-2">Filter by Happy Customer:</label>
+                    <select id="healthScoreFilter" class="w-full p-2 border rounded-md">
+                        <option value="">All Scores</option>
+                        <option value="Healthy">Healthy</option>
+                        <option value="Neutral">Neutral</option>
+                        <option value="At-Risk">At-Risk</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="roomsFilter" class="block text-sm font-medium text-gray-700 mb-2">Filter by Number of Rooms:</label>
+                    <select id="roomsFilter" class="w-full p-2 border rounded-md">
+                        <option value="">All Sizes</option>
+                        <option value="tiny">1-2 rooms</option>
+                        <option value="small">3-10 rooms</option>
+                        <option value="medium">11-30 rooms</option>
+                        <option value="large">31-50 rooms</option>
+                        <option value="xlarge">51+ rooms</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div id="map" class="relative">
+            <div id="messageBox" class="info-box hidden"></div>
+            <div id="loading" class="loading">
+                <div class="text-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-700 mx-auto"></div>
+                    <p class="mt-2">Loading data...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-2xl font-semibold text-blue-600 mb-4">Map Information:</h2>
+            <ul class="list-disc list-inside space-y-2 text-lg">
+                <li>Click on markers or clusters to see more information</li>
+                <li>Use the zoom controls to explore different areas</li>
+                <li>Data is automatically loaded </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Load scripts in the correct order -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+    <script>
+        // ============================================================================
+        // APPLICATION CONFIGURATION
+        // ============================================================================
+        const CONFIG = {
+            CSV_FILE: 'coordinates-adjustment-sp.csv',
+            MAP_CENTER: [0, 0],
+            MAP_ZOOM: 2,
+            CLUSTER_RADIUS: 50,
+            DEBOUNCE_DELAY: 500,
+            SEARCH_RESTORE_DELAY: 3000
+        };
+
+        // ============================================================================
+        // GLOBAL STATE MANAGEMENT
+        // ============================================================================
+        const AppState = {
+            map: null,
+            markers: null,
+            allMarkers: [],
+            regions: new Set(),
+            countries: new Set(),
+            propertyTypes: new Set(),
+            allData: [],
+            currentFilters: {
+                country: '',
+                region: '',
+                propertyType: [],
+                amenitiz: '',
+                healthScore: '',
+                rooms: ''
+            }
+        };
+
+        // ============================================================================
+        // UTILITY FUNCTIONS
+        // ============================================================================
+        const Utils = {
+            showMessage: (message, type = 'info') => {
+                const messageBox = document.getElementById('messageBox');
+                messageBox.textContent = message;
+                messageBox.className = `info-box p-3 rounded-lg shadow-lg ${type === 'error' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`;
+                messageBox.classList.remove('hidden');
+                setTimeout(() => messageBox.classList.add('hidden'), 5000);
+            },
+
+            toggleLoading: (show) => {
+                document.getElementById('loading').style.display = show ? 'block' : 'none';
+            },
+
+            debounce: (func, delay) => {
+                let timeoutId;
+                return function (...args) {
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(() => func.apply(this, args), delay);
+                };
+            },
+
+            getColumnValue: (row, columnName) => {
+                const normalizedColumnName = columnName.toLowerCase().replace(/\s+/g, '');
+                const column = Object.keys(row).find(key => 
+                    key.toLowerCase().replace(/\s+/g, '') === normalizedColumnName
+                );
+                return column ? row[column] : null;
+            },
+
+            isClient: (row) => {
+                const status = Utils.getColumnValue(row, 'Stripe Subscription Status');
+                if (!status) return false;
+                
+                const validStatuses = ['past_due', 'incomplete_expired', 'unpaid', 'trialing', 'active', 'incomplete', 'paused'];
+                return validStatuses.includes(status.toLowerCase());
+            }
+        };
+
+        // ============================================================================
+        // MAP MANAGEMENT
+        // ============================================================================
+        const MapManager = {
+            init: () => {
+                AppState.map = L.map('map', {
+                    center: CONFIG.MAP_CENTER,
+                    zoom: CONFIG.MAP_ZOOM,
+                    zoomControl: true
+                });
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(AppState.map);
+
+                MapManager.createClusterGroup();
+                MapManager.addResizeListener();
+            },
+
+            createClusterGroup: () => {
+                AppState.markers = L.markerClusterGroup({
+                    maxClusterRadius: CONFIG.CLUSTER_RADIUS,
+                    spiderfyOnMaxZoom: true,
+                    showCoverageOnHover: false,
+                    zoomToBoundsOnClick: true,
+                    iconCreateFunction: MapManager.createClusterIcon
+                });
+                AppState.map.addLayer(AppState.markers);
+            },
+
+            createClusterIcon: (cluster) => {
+                const markers = cluster.getAllChildMarkers();
+                const totalMarkers = markers.length;
+                const clients = markers.filter(marker => marker.options.data['Amenitiz Hotel Id Unique']).length;
+                const clientPercentage = (clients / totalMarkers) * 100;
+                
+                let clusterColor;
+                if (clientPercentage >= 80) {
+                    clusterColor = '#2ecc71'; // Green
+                } else if (clientPercentage <= 20) {
+                    clusterColor = '#e67e22'; // Orange
+                } else {
+                    clusterColor = '#f1c40f'; // Yellow
+                }
+                
+                let size;
+                if (totalMarkers >= 100) size = 'large';
+                else if (totalMarkers >= 10) size = 'medium';
+                else size = 'small';
+                
+                return L.divIcon({
+                    html: `<div style="
+                        background-color: ${clusterColor};
+                        width: 100%;
+                        height: 100%;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: white;
+                        font-weight: bold;
+                        font-size: ${size === 'large' ? '16px' : size === 'medium' ? '14px' : '12px'};
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                    ">${totalMarkers}</div>`,
+                    className: `custom-cluster-${size}`,
+                    iconSize: L.point(
+                        size === 'large' ? 40 : size === 'medium' ? 35 : 30,
+                        size === 'large' ? 40 : size === 'medium' ? 35 : 30
+                    )
+                });
+            },
+
+            addResizeListener: () => {
+                window.addEventListener('resize', () => {
+                    AppState.map.invalidateSize();
+                });
+            },
+
+            clearMarkers: () => {
+                AppState.markers.clearLayers();
+                AppState.map.removeLayer(AppState.markers);
+            },
+
+            addMarkers: () => {
+                AppState.map.addLayer(AppState.markers);
+            }
+        };
+
+        // ============================================================================
+        // MARKER MANAGEMENT
+        // ============================================================================
+        const MarkerManager = {
+            createIcons: () => {
+                return {
+                    green: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    }),
+                    orange: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    })
+                };
+            },
+
+            createMarker: (row, lat, lon) => {
+                const icons = MarkerManager.createIcons();
+                const icon = row['Amenitiz Hotel Id Unique'] ? icons.green : icons.orange;
+                const popupContent = MarkerManager.createPopupContent(row);
+                
+                return L.marker([lat, lon], { 
+                    icon: icon,
+                    data: row
+                }).bindPopup(popupContent);
+            },
+
+            createPopupContent: (row) => {
+                const columnOrder = [
+                    { key: 'Company name', label: 'Company Name' },
+                    { key: 'Record ID', label: 'Record ID' },
+                    { key: 'Region', label: 'Region' },
+                    { key: 'Property type', label: 'Property type' },
+                    { key: 'Booking engine', label: 'Booking Engine' },
+                    { key: 'Number of rooms', label: 'Number of Rooms' },
+                    { key: 'Amenitiz Hotel Id Unique', label: 'Client Status' },
+                    { key: 'Health Score status', label: 'Health Score' }
+                ];
+
+                let popupContent = '<div class="p-2">';
+                
+                // Add predefined columns
+                columnOrder.forEach(({ key, label }) => {
+                    const value = row[key];
+                    let displayValue = value;
+                    
+                    if (key === 'Amenitiz Hotel Id Unique') {
+                        displayValue = value ? 'Client' : 'Prospect';
+                    }
+                    
+                    if (value === null || value === undefined) {
+                        displayValue = '';
+                    } else {
+                        displayValue = String(value).trim();
+                    }
+                    
+                    if (displayValue !== '') {
+                        popupContent += `<strong>${label}:</strong> ${displayValue}<br>`;
+                    }
+                });
+
+                // Add remaining columns
+                const excludedColumns = ['Latitude', 'Longitude', 'Batcave Status', 'Street address', 'Street Address'];
+                Object.entries(row).forEach(([key, value]) => {
+                    if (!excludedColumns.includes(key) && !columnOrder.some(col => col.key === key)) {
+                        const displayValue = value === null || value === undefined ? '' : String(value).trim();
+                        if (displayValue !== '') {
+                            popupContent += `<strong>${key}:</strong> ${displayValue}<br>`;
+                        }
+                    }
+                });
+
+                popupContent += '</div>';
+                return popupContent;
+            }
+        };
+
+        // ============================================================================
+        // FILTER MANAGEMENT
+        // ============================================================================
+        const FilterManager = {
+            init: () => {
+                FilterManager.setupEventListeners();
+                FilterManager.setupClearButton();
+            },
+
+            setupEventListeners: () => {
+                document.getElementById('regionFilter').addEventListener('change', FilterManager.updateMarkers);
+                document.getElementById('amenitizFilter').addEventListener('change', FilterManager.updateMarkers);
+                document.getElementById('healthScoreFilter').addEventListener('change', FilterManager.updateMarkers);
+                document.getElementById('roomsFilter').addEventListener('change', FilterManager.updateMarkers);
+                
+                // Property Type multi-select dropdown
+                FilterManager.setupPropertyTypeDropdown();
+                
+                // Country filter with debouncing
+                const debouncedCountryUpdate = Utils.debounce(() => {
+                    FilterManager.updateRegionFilter();
+                    FilterManager.updateMarkers();
+                    FilterManager.updateClearButton();
+                }, CONFIG.DEBOUNCE_DELAY);
+
+                document.getElementById('countryFilter').addEventListener('change', () => {
+                    FilterManager.updateRegionFilter();
+                    FilterManager.updateMarkers();
+                    FilterManager.updateClearButton();
+                });
+
+                document.getElementById('countryFilter').addEventListener('input', debouncedCountryUpdate);
+            },
+
+            setupClearButton: () => {
+                document.getElementById('clearCountryFilter').addEventListener('click', () => {
+                    document.getElementById('countryFilter').value = '';
+                    FilterManager.updateRegionFilter();
+                    FilterManager.updateMarkers();
+                    FilterManager.updateClearButton();
+                });
+            },
+
+            updateClearButton: () => {
+                const countryFilter = document.getElementById('countryFilter');
+                const clearButton = document.getElementById('clearCountryFilter');
+                
+                clearButton.style.display = countryFilter.value.trim() !== '' ? 'block' : 'none';
+            },
+
+            updateRegionFilter: () => {
+                const selectedCountry = document.getElementById('countryFilter').value;
+                const regionFilter = document.getElementById('regionFilter');
+                const currentRegion = regionFilter.value;
+                
+                regionFilter.innerHTML = '<option value="">All Regions</option>';
+                
+                if (selectedCountry) {
+                    const countryRegions = new Set();
+                    AppState.allMarkers.forEach(marker => {
+                        const data = marker.options.data;
+                        if (data.Country && data.Country.toLowerCase().includes(selectedCountry.toLowerCase()) && data.Region) {
+                            countryRegions.add(data.Region);
+                        }
+                    });
+                    
+                    Array.from(countryRegions).sort().forEach(region => {
+                        const option = document.createElement('option');
+                        option.value = region;
+                        option.textContent = region;
+                        regionFilter.appendChild(option);
+                    });
+                    
+                    if (currentRegion && !countryRegions.has(currentRegion)) {
+                        regionFilter.value = '';
+                    }
+                } else {
+                    if (AppState.regions && AppState.regions.size > 0) {
+                        Array.from(AppState.regions).sort().forEach(region => {
+                            const option = document.createElement('option');
+                            option.value = region;
+                            option.textContent = region;
+                            regionFilter.appendChild(option);
+                        });
+                    }
+                }
+            },
+
+            updateMarkers: () => {
+                const filters = FilterManager.getCurrentFilters();
+                
+                MapManager.clearMarkers();
+                
+                const filteredMarkers = AppState.allMarkers.filter(marker => {
+                    const data = marker.options.data;
+                    return FilterManager.matchesFilters(data, filters);
+                });
+                
+                filteredMarkers.forEach(marker => {
+                    AppState.markers.addLayer(marker);
+                });
+                
+                MapManager.addMarkers();
+            },
+
+            getCurrentFilters: () => {
+                const propertyTypeCheckboxes = document.querySelectorAll('#propertyTypeCheckboxes input[type="checkbox"]:checked');
+                const selectedPropertyTypes = Array.from(propertyTypeCheckboxes).map(cb => cb.value);
+                
+                return {
+                    country: document.getElementById('countryFilter').value,
+                    region: document.getElementById('regionFilter').value,
+                    propertyType: selectedPropertyTypes,
+                    amenitiz: document.getElementById('amenitizFilter').value,
+                    healthScore: document.getElementById('healthScoreFilter').value,
+                    rooms: document.getElementById('roomsFilter').value
+                };
+            },
+
+            matchesFilters: (data, filters) => {
+                // Country filter
+                const countryMatch = !filters.country || 
+                    (data.Country && data.Country.toLowerCase().includes(filters.country.toLowerCase()));
+                
+                // Region filter
+                const regionMatch = !filters.region || data.Region === filters.region;
+                
+                // Property Type filter
+                const propertyTypeMatch = !filters.propertyType || filters.propertyType.includes(data['Property type']);
+                
+                // Amenitiz filter
+                const amenitizMatch = !filters.amenitiz || 
+                    (filters.amenitiz === 'true' && data['Amenitiz Hotel Id Unique']) ||
+                    (filters.amenitiz === 'false' && !data['Amenitiz Hotel Id Unique']);
+                
+                // Health Score filter
+                const healthScoreMatch = !filters.healthScore || data['Health Score status'] === filters.healthScore;
+                
+                // Rooms filter
+                let roomsMatch = true;
+                if (filters.rooms) {
+                    const rooms = parseInt(data['Number of rooms']) || 0;
+                    switch (filters.rooms) {
+                        case 'tiny': roomsMatch = rooms >= 1 && rooms <= 2; break;
+                        case 'small': roomsMatch = rooms >= 3 && rooms <= 10; break;
+                        case 'medium': roomsMatch = rooms >= 11 && rooms <= 30; break;
+                        case 'large': roomsMatch = rooms >= 31 && rooms <= 50; break;
+                        case 'xlarge': roomsMatch = rooms > 50; break;
+                    }
+                }
+                
+                return countryMatch && regionMatch && propertyTypeMatch && amenitizMatch && healthScoreMatch && roomsMatch;
+            },
+
+            setupPropertyTypeDropdown: () => {
+                const dropdown = document.getElementById('propertyTypeDropdown');
+                const options = document.getElementById('propertyTypeOptions');
+                const selectAll = document.getElementById('selectAllPropertyTypes');
+                
+                // Toggle dropdown
+                dropdown.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    options.classList.toggle('hidden');
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!dropdown.contains(e.target) && !options.contains(e.target)) {
+                        options.classList.add('hidden');
+                    }
+                });
+                
+                // Select All functionality
+                selectAll.addEventListener('change', (e) => {
+                    const checkboxes = document.querySelectorAll('#propertyTypeCheckboxes input[type="checkbox"]');
+                    checkboxes.forEach(checkbox => {
+                        checkbox.checked = e.target.checked;
+                    });
+                    FilterManager.updatePropertyTypeFilter();
+                });
+            },
+
+            updatePropertyTypeFilter: () => {
+                const checkboxes = document.querySelectorAll('#propertyTypeCheckboxes input[type="checkbox"]:checked');
+                const selectedTypes = Array.from(checkboxes).map(cb => cb.value);
+                
+                AppState.currentFilters.propertyType = selectedTypes;
+                
+                // Update display text
+                const display = document.getElementById('propertyTypeDisplay');
+                if (selectedTypes.length === 0) {
+                    display.textContent = 'All Property Types';
+                } else if (selectedTypes.length === 1) {
+                    display.textContent = selectedTypes[0];
+                } else {
+                    display.textContent = `${selectedTypes.length} types selected`;
+                }
+                
+                // Update Select All checkbox
+                const allCheckboxes = document.querySelectorAll('#propertyTypeCheckboxes input[type="checkbox"]');
+                const selectAll = document.getElementById('selectAllPropertyTypes');
+                selectAll.checked = selectedTypes.length === allCheckboxes.length && allCheckboxes.length > 0;
+                selectAll.indeterminate = selectedTypes.length > 0 && selectedTypes.length < allCheckboxes.length;
+                
+                FilterManager.updateMarkers();
+            }
+        };
+
+        // ============================================================================
+        // SEARCH MANAGEMENT
+        // ============================================================================
+        const SearchManager = {
+            init: () => {
+                document.getElementById('searchButton').addEventListener('click', SearchManager.searchAndCenterPoint);
+                document.getElementById('searchField').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        SearchManager.searchAndCenterPoint();
+                    }
+                });
+            },
+
+            searchAndCenterPoint: () => {
+                const searchValue = document.getElementById('searchField').value.trim().toLowerCase();
+                if (!searchValue) return;
+
+                const foundMarker = AppState.allMarkers.find(marker => {
+                    const data = marker.options.data;
+                    const recordId = String(data['Record ID'] || '').toLowerCase();
+                    const companyName = String(data['Company name'] || '').toLowerCase();
+                    return recordId === searchValue || companyName === searchValue;
+                });
+
+                if (foundMarker) {
+                    const currentFilters = FilterManager.getCurrentFilters();
+                    
+                    MapManager.clearMarkers();
+                    AppState.markers.addLayer(foundMarker);
+                    MapManager.addMarkers();
+                    
+                    AppState.map.setView(foundMarker.getLatLng(), 15);
+                    foundMarker.openPopup();
+                    
+                    Utils.showMessage('Location found!', 'success');
+                    
+                    setTimeout(() => {
+                        document.getElementById('regionFilter').value = currentFilters.region;
+                        document.getElementById('countryFilter').value = currentFilters.country;
+                        
+                        // Restore property type checkboxes
+                        const propertyTypeCheckboxes = document.querySelectorAll('#propertyTypeCheckboxes input[type="checkbox"]');
+                        propertyTypeCheckboxes.forEach(checkbox => {
+                            checkbox.checked = currentFilters.propertyType.includes(checkbox.value);
+                        });
+                        FilterManager.updatePropertyTypeFilter();
+                        
+                        document.getElementById('amenitizFilter').value = currentFilters.amenitiz;
+                        document.getElementById('healthScoreFilter').value = currentFilters.healthScore;
+                        document.getElementById('roomsFilter').value = currentFilters.rooms;
+                        FilterManager.updateRegionFilter();
+                        FilterManager.updateMarkers();
+                        FilterManager.updateClearButton();
+                    }, CONFIG.SEARCH_RESTORE_DELAY);
+                } else {
+                    Utils.showMessage('No matching record found', 'error');
+                }
+            }
+        };
+
+        // ============================================================================
+        // DATA MANAGEMENT
+        // ============================================================================
+        const DataManager = {
+            async loadCSVFile() {
+                try {
+                    console.log('Starting to load CSV file...');
+                    Utils.toggleLoading(true);
+                    
+                    const response = await fetch(CONFIG.CSV_FILE);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const csvContent = await response.text();
+                    if (!csvContent || csvContent.trim() === '') {
+                        throw new Error('CSV file is empty');
+                    }
+                    
+                    console.log('CSV file loaded successfully');
+                    DataManager.processCSVData(csvContent);
+                } catch (error) {
+                    console.error('Error loading CSV file:', error);
+                    Utils.showMessage(`Error loading CSV file: ${error.message}`, 'error');
+                    Utils.toggleLoading(false);
+                }
+            },
+
+            processCSVData(csvContent) {
+                console.log('Processing CSV data...');
+                Utils.toggleLoading(true);
+                
+                MapManager.clearMarkers();
+                AppState.allMarkers = [];
+                AppState.regions.clear();
+                AppState.countries.clear();
+                AppState.propertyTypes.clear();
+
+                try {
+                    Papa.parse(csvContent, {
+                        header: true,
+                        dynamicTyping: true,
+                        skipEmptyLines: true,
+                        complete: (results) => {
+                            console.log('CSV parsing completed');
+                            Utils.toggleLoading(false);
+                            
+                            if (!results || !results.data) {
+                                throw new Error('Invalid CSV data structure');
+                            }
+
+                            let bounds = L.latLngBounds([]);
+                            let validPoints = 0;
+                            let invalidPoints = 0;
+
+                            results.data.forEach(row => {
+                                try {
+                                    const lat = parseFloat(row.Latitude);
+                                    const lon = parseFloat(row.Longitude);
+
+                                    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                                        invalidPoints++;
+                                        return;
+                                    }
+
+                                    validPoints++;
+                                    const marker = MarkerManager.createMarker(row, lat, lon);
+                                    
+                                    AppState.allMarkers.push(marker);
+                                    AppState.markers.addLayer(marker);
+                                    bounds.extend([lat, lon]);
+
+                                    // Collect filter data
+                                    if (row.Region) AppState.regions.add(row.Region);
+                                    if (row.Country) AppState.countries.add(row.Country);
+                                    if (row['Property type']) AppState.propertyTypes.add(row['Property type']);
+                                } catch (error) {
+                                    console.error('Error processing row:', error);
+                                    invalidPoints++;
+                                }
+                            });
+
+                            DataManager.updateFilterOptions();
+                            MapManager.addMarkers();
+
+                            if (bounds.isValid()) {
+                                AppState.map.fitBounds(bounds, { padding: [50, 50] });
+                            }
+
+                            let message = `Successfully loaded ${validPoints} points`;
+                            if (invalidPoints > 0) {
+                                message += ` (${invalidPoints} invalid points skipped)`;
+                            }
+                            Utils.showMessage(message, 'success');
+                        },
+                        error: (error) => {
+                            console.error('Error in CSV parsing:', error);
+                            Utils.toggleLoading(false);
+                            Utils.showMessage("Error parsing CSV file. Please check the file format.", 'error');
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error processing CSV:', error);
+                    Utils.toggleLoading(false);
+                    Utils.showMessage("Error processing CSV file. Please check the file format and try again.", 'error');
+                }
+            },
+
+            updateFilterOptions() {
+                FilterManager.updateRegionFilter();
+                
+                // Update country datalist options
+                const countryDatalist = document.getElementById('countryOptions');
+                countryDatalist.innerHTML = '<option value="">All Countries</option>';
+                AppState.countries.forEach(country => {
+                    const option = document.createElement('option');
+                    option.value = country;
+                    countryDatalist.appendChild(option);
+                });
+                
+                // Update property type checkboxes
+                const propertyTypeCheckboxes = document.getElementById('propertyTypeCheckboxes');
+                propertyTypeCheckboxes.innerHTML = '';
+                AppState.propertyTypes.forEach(propertyType => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = propertyType;
+                    checkbox.className = 'mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500';
+                    checkbox.addEventListener('change', FilterManager.updatePropertyTypeFilter);
+                    
+                    const label = document.createElement('label');
+                    label.textContent = propertyType;
+                    label.className = 'text-sm text-gray-700 cursor-pointer';
+                    label.addEventListener('click', () => checkbox.click());
+                    
+                    div.appendChild(checkbox);
+                    div.appendChild(label);
+                    propertyTypeCheckboxes.appendChild(div);
+                });
+            }
+        };
+
+        // ============================================================================
+        // APPLICATION INITIALIZATION
+        // ============================================================================
+        const App = {
+            init: () => {
+                console.log('Initializing application...');
+                MapManager.init();
+                FilterManager.init();
+                SearchManager.init();
+                DataManager.loadCSVFile();
+            }
+        };
+
+        // Wait for all scripts to load and initialize
+        window.addEventListener('load', App.init);
+    </script>
+</body>
+</html>
+
