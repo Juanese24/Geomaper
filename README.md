@@ -1,4 +1,4 @@
-# Geomapper Amenitiz
+# Geomapper
 
 ## 📍 Description
 Interactive web application to visualize the geographical distribution of Amenitiz clients and prospects. Built with Leaflet.js, TailwindCSS, and modular JavaScript.
@@ -41,9 +41,9 @@ Interactive web application to visualize the geographical distribution of Amenit
 ## 📁 Project Structure
 
 ```
-Geomapper_amenitiz/
+Geomapper/
 ├── mapa_clientes.html      # Main application
-├── coordinates-adjustment-sp.csv  # Geographical data
+├── coordinates-adjustment.csv  # Geographical data
 ├── start_server.sh         # Quick start script
 └── README.md              # Documentation
 ```
@@ -64,7 +64,7 @@ Geomapper_amenitiz/
 ### Quick Start
 1. **Go to the project directory**
    ```bash
-   cd /Users/juansebastiansuarez/scraping/Geomapper_amenitiz
+   cd /Users/juansebastiansuarez/scraping/Geomapper
    ```
 2. **Start the server**
    ```bash
@@ -127,5 +127,5 @@ The CSV file must contain the following columns:
 - Initial filter and search features
 
 ## 📄 License
-Internal Amenitiz project - Exclusive use for client and prospect data analysis.
+Internal project - Exclusive use for client and prospect data analysis.
 
