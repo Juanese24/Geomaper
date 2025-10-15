@@ -1,7 +1,7 @@
 # Geomapper
 
 ## 📍 Description
-Interactive web application to visualize the geographical distribution of Amenitiz clients and prospects. Built with Leaflet.js, TailwindCSS, and modular JavaScript.
+Interactive web application to visualize the geographical distribution of clients and prospects. Built with Leaflet.js, TailwindCSS, and modular JavaScript.
 
 ## 🚀 Features
 
